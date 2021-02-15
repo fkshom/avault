@@ -62,14 +62,16 @@ def read_passfile(passfile):
 
 # https://gihyo.jp/dev/serial/01/yaml_library/0003
 # https://stackoverflow.com/questions/27518976/how-can-i-get-pyyaml-safe-load-to-handle-python-unicode-tag
+# https://qiita.com/podhmo/items/aa954ee1dc1747252436
 def yaml_register_class(klass, ytag):
-    suffix = '%s.%s' % (klass.__module__, klass.__name__)
-    def representer(dumper, instance):
-        node = dumper.represent_mapping(ytag, instance.__dict__)
-        return node
+    # suffix = '%s.%s' % (klass.__module__, klass.__name__)
+    # def representer(dumper, instance):
+    #     node = dumper.represent_mapping(ytag, instance.__dict__)
+    #     return node
     def constructor(loader, node):
+        av = AnsibleVault(string=node.value, password_sets=password_sets)
         return node.value
-    yaml.SafeDumper.add_representer(klass, representer)
+    # yaml.SafeDumper.add_representer(klass, representer)
     yaml.SafeLoader.add_constructor(ytag, constructor)
     #suffix = '%s.%s' % (klass.__module__, klass.__name__)
     #f1 = lambda dumper, obj: dumper.represent_mapping(ytag, obj.__dict__)
@@ -85,7 +87,14 @@ class VaultString():
         return self.str
 
 def command_decrypt_yaml(args):
-    yaml_register_class(VaultString, '!vault')
+    password_sets = read_passfile(args.passfile)
+    #yaml_register_class(VaultString, '!vault')
+
+    def constructor(loader, node):
+        av = AnsibleVault(string=node.value, password_sets=password_sets)
+        return av.view()
+    yaml.SafeLoader.add_constructor('!vault', constructor)
+
     with open(args.filename, 'r') as f:
         obj = yaml.safe_load(f)
         pp(obj)
