@@ -2,7 +2,7 @@ import pytest
 from assertpy import assert_that, fail
 import yaml
 import logging
-from avault import main
+from avault import main, run
 import io
 import textwrap
 import tempfile
@@ -33,6 +33,7 @@ wholevault_decrypted = textwrap.dedent("""
 
 inlinevault = textwrap.dedent("""
 - item1
+- item3
 - !vault |
     $ANSIBLE_VAULT;1.1;AES256
     30323633363634656636323338386264376561376632323135343964376332653431363132616365
@@ -41,6 +42,7 @@ inlinevault = textwrap.dedent("""
     6534313837316538310a333334646333613164306234326563633132343536366162306533386236
     3633
 - key1: value1
+  key3: value3
   key2:
     key2-2: !vault |
             $ANSIBLE_VAULT;1.1;AES256
@@ -53,8 +55,10 @@ inlinevault = textwrap.dedent("""
 
 inlinevault_decrypted = textwrap.dedent("""
 - item1
+- item3
 - item2
 - key1: value1
+  key3: value3
   key2:
     key2-2: value2-2
 """)[1:-1]
@@ -64,7 +68,6 @@ passwords = textwrap.dedent("""
 name2,test
 """)
 
-@pytest.mark.skip(reason='pytestskip')
 class TestWholeVault():
     @pytest.fixture(scope='function', autouse=True)
     def scope_function(self):
@@ -78,15 +81,17 @@ class TestWholeVault():
 
         yield dict(filename=filename, passfile=passfile)
 
+    @pytest.mark.skip(reason='pytestskip')
     def test_decrypt(self, scope_function):
         filename = scope_function['filename']
         passfile = scope_function['passfile']
 
         args = ['decrypt', '--passfile', passfile, filename]
-        main(args=args)
+        run(args=args)
         with open(filename, 'r') as f:
             assert_that(f.read().rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
+    @pytest.mark.skip(reason='pytestskip')
     def test_view(self, scope_function, capfd):
         filename = scope_function['filename']
         passfile = scope_function['passfile']
@@ -114,7 +119,7 @@ class TestInlineVault():
         filename = scope_function['filename']
         passfile = scope_function['passfile']
 
-        args = ['decrypt_yaml', '--passfile', passfile, filename]
+        args = ['decrypt', '--passfile', passfile, filename]
         main(args=args)
         with open(filename, 'r') as f:
             assert_that(f.read().rstrip()).is_equal_to(inlinevault_decrypted.rstrip())

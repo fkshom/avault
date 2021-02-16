@@ -6,13 +6,22 @@ import tempfile
 import os
 import yaml
 from pprint import pprint as pp
+import sys
 
 class AnsibleVault():
     def __init__(self, filename, password_sets):
         self.filename = filename
         self.password_sets = password_sets
+        
+        with open(filename, 'r') as f:
+            self.content = f.read()
 
     def is_whole_vaulted(self):
+        if self.content.strip().startswith("$ANSIBLE_VAULT"):
+            return True
+        return False
+        
+    def is_whole_vaulted_(self):
         with open(self.filename, 'r') as f:
             if f.readline().strip().startswith("$ANSIBLE_VAULT"):
                 return True
@@ -24,7 +33,11 @@ class AnsibleVault():
                 with tempfile.NamedTemporaryFile("w+") as f:
                     print(password_set['password'], file=f)
                     f.seek(0)
-                    subprocess.run(f'ansible-vault {command} --vault-password-file {f.name} {self.filename}', shell=True, check=True)
+                    proc = subprocess.run(
+                        f'ansible-vault {command} --vault-password-file {f.name} {self.filename}',
+                        shell=True, check=True,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    return proc.stdout
                     break
             except subprocess.CalledProcessError as e:
                 pass
@@ -44,6 +57,20 @@ class AnsibleVault():
             self._run_process(command='view')
         else:
             raise Exception(f"{self.filename} is not whole vaulted file. view subcommand does not support.")
+
+    def get_plain(self):
+        if self.is_whole_vaulted():
+            result = self._run_process(command='view')
+            return result
+        else:
+
+            def vault_constructor(loader, node):
+                return 1
+
+            yaml.SafeLoader.add_constructor('!vault', vault_constructor)
+            with open(self.filename, 'r') as f:
+                return yaml.dump(yaml.safe_load(f))
+
 
 def read_passfile(passfile):
     password_sets = []
@@ -90,33 +117,32 @@ def command_decrypt_yaml(args):
     password_sets = read_passfile(args.passfile)
     #yaml_register_class(VaultString, '!vault')
 
-    def constructor(loader, node):
-        av = AnsibleVault(string=node.value, password_sets=password_sets)
-        return av.view()
-    yaml.SafeLoader.add_constructor('!vault', constructor)
-
-    with open(args.filename, 'r') as f:
-        obj = yaml.safe_load(f)
-        pp(obj)
+    av = AnsibleVault(args.filename)
+    av.decrypt()
 
 def command_decrypt(args):
     password_sets = read_passfile(args.passfile)
     av = AnsibleVault(args.filename, password_sets)
-    av.decrypt()
+    result = av.get_plain()
+    with open(args.filename, 'w') as f:
+        print(result, end='', file=f)
+    return None
 
 def command_view(args):
     password_sets = read_passfile(args.passfile)
     av = AnsibleVault(args.filename, password_sets)
-    av.view()
+    result = av.get_plain()
+    print(result)
+    return None
 
-def main(args=None):
+def run(args=None):
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
     
-    parser_decrypt = subparsers.add_parser('decrypt_yaml')
-    parser_decrypt.add_argument('--passfile')
-    parser_decrypt.add_argument('filename')
-    parser_decrypt.set_defaults(handler=command_decrypt_yaml)
+    parser_decrypt_yaml = subparsers.add_parser('decrypt_yaml')
+    parser_decrypt_yaml.add_argument('--passfile')
+    parser_decrypt_yaml.add_argument('filename')
+    parser_decrypt_yaml.set_defaults(handler=command_decrypt_yaml)
 
     parser_decrypt = subparsers.add_parser('decrypt')
     parser_decrypt.add_argument('--passfile')
@@ -130,9 +156,12 @@ def main(args=None):
 
     args = parser.parse_args(args)
     if hasattr(args, 'handler'):
-        args.handler(args)
+        return args.handler(args)
     else:
-        parser.print_help()
+        return parser.print_help()
+
+def main(args=None):
+    run(args)
 
 if __name__ == "__main__":
     main()
