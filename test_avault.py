@@ -2,8 +2,8 @@ import pytest
 from assertpy import assert_that, fail
 import yaml
 import logging
-from avault import main
-import avault
+from importlib.machinery import SourceFileLoader  # 拡張子なしpy scriptをimportするため
+avault = SourceFileLoader('avault', './avault').load_module()
 import io
 import textwrap
 import tempfile
@@ -132,26 +132,26 @@ class TestWholeVault():
 
     def test_decrypt(self, vaultfile, passfile):
         args = ['decrypt', '--passfile', passfile, vaultfile]
-        main(args=args)
+        avault.main(args=args)
         with open(vaultfile, 'r') as f:
             assert_that(f.read().rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
     def test_view(self, vaultfile, passfile, capfd):
         args = ['view', '--passfile', passfile, vaultfile]
-        main(args=args)
+        avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
     def test_view_from_stdin(self, stdinvault, passfile, capfd):
         args = ['view', '--passfile', passfile]
-        main(args=args)
+        avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
     def test_view_with_ask_pass(self, vaultfile, monkeypatch, capfd):
         args = ['view', vaultfile]
         monkeypatch.setattr('getpass.getpass', lambda prompt: 'test')
-        main(args=args)
+        avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
     
@@ -190,18 +190,18 @@ class TestInlineVault():
 
     def test_decrypt(self, vaultfile, passfile):
         args = ['decrypt', '--passfile', passfile, vaultfile]
-        main(args=args)
+        avault.main(args=args)
         with open(vaultfile, 'r') as f:
             assert_that(f.read().rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
 
     def test_view(self, vaultfile, passfile, capfd):
         args = ['view', '--passfile', passfile, vaultfile]
-        main(args=args)
+        avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
 
     def test_view_from_stdin(self, stdinvault, passfile, capfd):
         args = ['view', '--passfile', passfile]
-        main(args=args)
+        avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
