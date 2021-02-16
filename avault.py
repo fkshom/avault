@@ -13,8 +13,11 @@ class AnsibleVault():
     @classmethod
     def load(cls, filename, password_sets):
         content = None
-        with open(filename, 'r') as f:
-            content = f.read()
+        if filename == '-':
+            content = sys.stdin.read()
+        else:
+            with open(filename, 'r') as f:
+                content = f.read()
         return AnsibleVault(content, password_sets)
 
     def _decrypt_content(self, content, password):
@@ -104,7 +107,7 @@ def main(args=None):
 
     parser_view = subparsers.add_parser('view')
     parser_view.add_argument('--passfile')
-    parser_view.add_argument('filename')
+    parser_view.add_argument('filename', nargs='?', default='-')
     parser_view.set_defaults(handler=command_view)
 
     args = parser.parse_args(args)

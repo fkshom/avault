@@ -100,16 +100,27 @@ name2,test
 """)
 
 class TestWholeVault():
-    @pytest.fixture(scope='function', autouse=True)
-    def scope_function(self):
+    @pytest.fixture(scope='function', autouse=False)
+    def vaultfile(self):
         filename = '/tmp/abcde'
         with open(filename, 'w') as f:
             print(wholevault, end='', file=f)
+        yield filename
 
+    @pytest.fixture(scope='function', autouse=False)
+    def stdinvault(self, monkeypatch):
+        monkeypatch.setattr('sys.stdin', io.StringIO(wholevault))
+        yield
+
+    @pytest.fixture(scope='function', autouse=False)
+    def passfile(self):
         passfile = '/tmp/passfile'
         with open(passfile, 'w') as f:
             print(passwords, end='', file=f)
+        yield passfile
 
+    @pytest.fixture(scope='function', autouse=True)
+    def mock_decrypt_content_method(self):
         def _decrypt_content_mock(self, content, password):
             if content.strip() == wholevault.strip() and password == 'test':
                 return wholevault_decrypted
@@ -117,40 +128,49 @@ class TestWholeVault():
                 raise subprocess.CalledProcessError(returncode=1, cmd='ansible-vault')
 
         avault.AnsibleVault._decrypt_content = _decrypt_content_mock
-        yield dict(filename=filename, passfile=passfile)
+        yield
 
-    # @pytest.mark.skip(reason='pytestskip')
-    def test_decrypt(self, scope_function):
-        filename = scope_function['filename']
-        passfile = scope_function['passfile']
-
-        args = ['decrypt', '--passfile', passfile, filename]
+    def test_decrypt(self, vaultfile, passfile):
+        args = ['decrypt', '--passfile', passfile, vaultfile]
         main(args=args)
-        with open(filename, 'r') as f:
+        with open(vaultfile, 'r') as f:
             assert_that(f.read().rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
-    # @pytest.mark.skip(reason='pytestskip')
-    def test_view(self, scope_function, capfd):
-        filename = scope_function['filename']
-        passfile = scope_function['passfile']
-
-        args = ['view', '--passfile', passfile, filename]
+    def test_view(self, vaultfile, passfile, capfd):
+        args = ['view', '--passfile', passfile, vaultfile]
         main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
+    def test_view_from_stdin(self, stdinvault, passfile, capfd):
+        args = ['view', '--passfile', passfile]
+        main(args=args)
+        out, err = capfd.readouterr()
+        assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
+    
 class TestInlineVault():
-    @pytest.fixture(scope='function', autouse=True)
-    def scope_function(self):
+    @pytest.fixture(scope='function', autouse=False)
+    def vaultfile(self):
         filename = '/tmp/abcde'
         with open(filename, 'w') as f:
             print(inlinevault, end='', file=f)
+        yield filename
 
+    @pytest.fixture(scope='function', autouse=False)
+    def stdinvault(self, monkeypatch):
+        monkeypatch.setattr('sys.stdin', io.StringIO(inlinevault))
+        yield
+
+    @pytest.fixture(scope='function', autouse=False)
+    def passfile(self):
         passfile = '/tmp/passfile'
         with open(passfile, 'w') as f:
             print(passwords, end='', file=f)
+        yield passfile
 
+    @pytest.fixture(scope='function', autouse=True)
+    def mock_decrypt_content_method(self):
         def _decrypt_content_mock(self, content, password):
             if content.strip() == vaulted_data['item2'].replace(' ', '').strip() and password == 'test':
                 return 'item2'
@@ -160,25 +180,22 @@ class TestInlineVault():
                 raise subprocess.CalledProcessError(returncode=1, cmd='ansible-vault')
 
         avault.AnsibleVault._decrypt_content = _decrypt_content_mock
-        yield dict(filename=filename, passfile=passfile)
+        yield
 
-    # @pytest.mark.skip(reason='pytestskip')
-    def test_decrypt(self, scope_function):
-        filename = scope_function['filename']
-        passfile = scope_function['passfile']
-
-        args = ['decrypt', '--passfile', passfile, filename]
+    def test_decrypt(self, vaultfile, passfile):
+        args = ['decrypt', '--passfile', passfile, vaultfile]
         main(args=args)
-        with open(filename, 'r') as f:
+        with open(vaultfile, 'r') as f:
             assert_that(f.read().rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
 
-    # @pytest.mark.skip(reason='pytestskip')
-    def test_view(self, scope_function, capfd):
-        filename = scope_function['filename']
-        passfile = scope_function['passfile']
-
-        args = ['view', '--passfile', passfile, filename]
+    def test_view(self, vaultfile, passfile, capfd):
+        args = ['view', '--passfile', passfile, vaultfile]
         main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
 
+    def test_view_from_stdin(self, stdinvault, passfile, capfd):
+        args = ['view', '--passfile', passfile]
+        main(args=args)
+        out, err = capfd.readouterr()
+        assert_that(out.rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
