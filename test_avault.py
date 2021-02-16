@@ -148,6 +148,12 @@ class TestWholeVault():
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
+    def test_view_with_ask_pass(self, vaultfile, monkeypatch, capfd):
+        args = ['view', vaultfile]
+        monkeypatch.setattr('getpass.getpass', lambda prompt: 'test')
+        main(args=args)
+        out, err = capfd.readouterr()
+        assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
     
 class TestInlineVault():
     @pytest.fixture(scope='function', autouse=False)

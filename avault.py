@@ -90,7 +90,13 @@ def command_decrypt(args):
     return None
 
 def command_view(args):
-    password_sets = read_passfile(args.passfile)
+    if args.passfile:
+        password_sets = read_passfile(args.passfile)
+    else:
+        import getpass
+        password = getpass.getpass(prompt='Password: ')
+        password_sets = [{'mame':'main', 'password':password}]
+
     av = AnsibleVault.load(args.filename, password_sets)
     result = av.get_plain()
     print(result)
