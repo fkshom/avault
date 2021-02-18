@@ -99,117 +99,127 @@ name1,password1
 name2,test
 """)
 
-class TestWholeVault():
-    @pytest.fixture(scope='function', autouse=False)
-    def vaultfile(self):
-        filename = '/tmp/abcde'
-        with open(filename, 'w') as f:
-            print(wholevault, end='', file=f)
-        yield filename
+@pytest.fixture(scope='function', autouse=False)
+def wholevaultfile():
+    filename = '/tmp/abcde'
+    with open(filename, 'w') as f:
+        print(wholevault, end='', file=f)
+    yield filename
 
-    @pytest.fixture(scope='function', autouse=False)
-    def stdinvault(self, monkeypatch):
-        monkeypatch.setattr('sys.stdin', io.StringIO(wholevault))
-        yield
+@pytest.fixture(scope='function', autouse=False)
+def stdinwholevault(monkeypatch):
+    monkeypatch.setattr('sys.stdin', io.StringIO(wholevault))
+    yield
 
-    @pytest.fixture(scope='function', autouse=False)
-    def passfile(self):
-        passfile = '/tmp/passfile'
-        with open(passfile, 'w') as f:
-            print(passwords, end='', file=f)
-        yield passfile
+@pytest.fixture(scope='function', autouse=False)
+def inlinevaultfile():
+    filename = '/tmp/abcde'
+    with open(filename, 'w') as f:
+        print(inlinevault, end='', file=f)
+    yield filename
 
-    @pytest.fixture(scope='function', autouse=True)
-    def mock_decrypt_content_method(self):
-        def _decrypt_content_mock(self, content, password):
-            if content.strip() == wholevault.strip() and password == 'test':
-                return wholevault_decrypted
-            else:
-                raise subprocess.CalledProcessError(returncode=1, cmd='ansible-vault')
+@pytest.fixture(scope='function', autouse=False)
+def stdininlinevault(monkeypatch):
+    monkeypatch.setattr('sys.stdin', io.StringIO(inlinevault))
+    yield
 
-        avault.AnsibleVault._decrypt_content = _decrypt_content_mock
-        yield
+@pytest.fixture(scope='function', autouse=False)
+def passfile():
+    passfile = '/tmp/passfile'
+    with open(passfile, 'w') as f:
+        print(passwords, end='', file=f)
+    yield passfile
 
-    def test_decrypt(self, vaultfile, passfile):
-        args = ['decrypt', '--passfile', passfile, vaultfile]
+@pytest.fixture(scope='function', autouse=True)
+def mock_decrypt_content_method():
+    def _decrypt_content_mock(self, content, password):
+        if content.strip() == wholevault.strip() and password == 'test':
+            return wholevault_decrypted
+        elif content.strip() == vaulted_data['item2'].replace(' ', '').strip() and password == 'test':
+            return 'item2'
+        elif content.strip() == vaulted_data['value2-2'].replace(' ', '').strip() and password == 'test':
+            return 'value2-2'
+        else:
+            raise subprocess.CalledProcessError(returncode=1, cmd='ansible-vault')
+
+    avault.AnsibleVault._decrypt_content = _decrypt_content_mock
+    yield
+
+
+class Testサブコマンド機能試験():
+    class Test_ecrypt():
+        def test_ファイルが書き変わる(self, wholevaultfile, passfile):
+            args = ['decrypt', '--passfile', passfile, wholevaultfile]
+            avault.main(args=args)
+            with open(wholevaultfile, 'r') as f:
+                assert_that(f.read().rstrip()).is_equal_to(wholevault_decrypted.rstrip())
+
+    class Test_view():
+        def test_stdoutに出力される(self, wholevaultfile, passfile, capfd):
+            args = ['view', '--passfile', passfile, wholevaultfile]
+            avault.main(args=args)
+            out, err = capfd.readouterr()
+            assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
+
+class Test入力元別試験():
+    def test_from_file(self, wholevaultfile, passfile):
+        args = ['decrypt', '--passfile', passfile, wholevaultfile]
         avault.main(args=args)
-        with open(vaultfile, 'r') as f:
+        with open(wholevaultfile, 'r') as f:
             assert_that(f.read().rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
-    def test_view(self, vaultfile, passfile, capfd):
-        args = ['view', '--passfile', passfile, vaultfile]
-        avault.main(args=args)
-        out, err = capfd.readouterr()
-        assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
-
-    def test_view_from_stdin(self, stdinvault, passfile, capfd):
+    def test_from_stdin1(self, stdinwholevault, passfile, capfd):
         args = ['view', '--passfile', passfile]
         avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
-    def test_view_with_ask_pass(self, vaultfile, monkeypatch, capfd):
-        args = ['view', vaultfile]
+    def test_from_stdin2(self, stdinwholevault, passfile, capfd):
+        args = ['view', '--passfile', passfile, '-']
+        avault.main(args=args)
+        out, err = capfd.readouterr()
+        assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
+
+    def test_decrypt_deny_from_stdin(self, stdinwholevault, passfile, capfd):
+        args = ['decrypt', '--passfile', passfile]
+        with pytest.raises(SystemExit) as excinfo:
+            avault.main(args=args)
+
+class Test入力ファイル種類別試験():
+    class Test_wholevaultfile():
+        def test_wholevaultfile(self, wholevaultfile, passfile, capfd):
+            args = ['view', '--passfile', passfile, wholevaultfile]
+            avault.main(args=args)
+            out, err = capfd.readouterr()
+            assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
+
+    class Test_inlinevaultfile():
+        def test_inlinevaultfile(self, inlinevaultfile, passfile, capfd):
+            args = ['view', '--passfile', passfile, inlinevaultfile]
+            avault.main(args=args)
+            out, err = capfd.readouterr()
+            assert_that(out.rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
+
+
+class Testパスワード入力方法():
+    def test_ask_pass(self, wholevaultfile, monkeypatch, capfd):
+        args = ['view', wholevaultfile]
         monkeypatch.setattr('getpass.getpass', lambda prompt: 'test')
         avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
     
-    def test_view_with_pass_from_environment_variable(self, vaultfile, monkeypatch, capfd):
-        args = ['view', vaultfile]
-        monkeypatch.setattr('getpass.getpass', lambda prompt: raise Exception('Must not be called'))
+    def test_from_environment_variable(self, wholevaultfile, mocker, monkeypatch, capfd):
+        args = ['view', wholevaultfile]
+        mocker.patch('getpass.getpass', side_effect=Exception('Must not be called'))
         monkeypatch.setattr('os.environ', {'AVAULT_PASS': 'test'})
         avault.main(args=args)
-        out, er = capfd.readouterr()
+        out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
 
-class TestInlineVault():
-    @pytest.fixture(scope='function', autouse=False)
-    def vaultfile(self):
-        filename = '/tmp/abcde'
-        with open(filename, 'w') as f:
-            print(inlinevault, end='', file=f)
-        yield filename
-
-    @pytest.fixture(scope='function', autouse=False)
-    def stdinvault(self, monkeypatch):
-        monkeypatch.setattr('sys.stdin', io.StringIO(inlinevault))
-        yield
-
-    @pytest.fixture(scope='function', autouse=False)
-    def passfile(self):
-        passfile = '/tmp/passfile'
-        with open(passfile, 'w') as f:
-            print(passwords, end='', file=f)
-        yield passfile
-
-    @pytest.fixture(scope='function', autouse=True)
-    def mock_decrypt_content_method(self):
-        def _decrypt_content_mock(self, content, password):
-            if content.strip() == vaulted_data['item2'].replace(' ', '').strip() and password == 'test':
-                return 'item2'
-            elif content.strip() == vaulted_data['value2-2'].replace(' ', '').strip() and password == 'test':
-                return 'value2-2'
-            else:
-                raise subprocess.CalledProcessError(returncode=1, cmd='ansible-vault')
-
-        avault.AnsibleVault._decrypt_content = _decrypt_content_mock
-        yield
-
-    def test_decrypt(self, vaultfile, passfile):
-        args = ['decrypt', '--passfile', passfile, vaultfile]
-        avault.main(args=args)
-        with open(vaultfile, 'r') as f:
-            assert_that(f.read().rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
-
-    def test_view(self, vaultfile, passfile, capfd):
-        args = ['view', '--passfile', passfile, vaultfile]
+    def test_with_pass_from_environment_variable_with_ask_pass(self, wholevaultfile, passfile, mocker, monkeypatch, capfd):
+        args = ['view', '--passfile', passfile, wholevaultfile]
+        monkeypatch.setattr('os.environ', {'AVAULT_PASS': 'test'})
         avault.main(args=args)
         out, err = capfd.readouterr()
-        assert_that(out.rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
-
-    def test_view_from_stdin(self, stdinvault, passfile, capfd):
-        args = ['view', '--passfile', passfile]
-        avault.main(args=args)
-        out, err = capfd.readouterr()
-        assert_that(out.rstrip()).is_equal_to(inlinevault_decrypted.rstrip())
+        assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
