@@ -9,9 +9,8 @@ ansible-vaultコマンドとは異なる次の特徴を持ちます。
 ## Usage
 
 ```sh
-$ wget https://github.com/fkshom/avault/raw/main/avault
-$ chmod +x ./avault
-$ ./avault view --passfile passwords.txt vault.yml
+$ pip3 install avault
+$ avault -h
 ```
 
 ```
