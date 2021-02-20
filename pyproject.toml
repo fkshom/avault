@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "avault"
-version = "0.1.1"
+version = "0.1.2"
 description = ""
 authors = ["Shoma FUKUDA <fkshom+pypi@gmail.com>"]
 homepage = "https://github.com/fkshom"
