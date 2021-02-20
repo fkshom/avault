@@ -1,13 +1,13 @@
-#!/usr/bin/env python3
-
 import argparse
+import os
 import subprocess
 import tempfile
-import os
 import yaml
 from pprint import pprint as pp
 import sys
-
+from ansible.parsing.vault import VaultLib
+from ansible.constants import DEFAULT_VAULT_ID_MATCH
+from ansible.parsing.vault import VaultSecret
 
 class AnsibleVault():
     @classmethod
@@ -21,6 +21,13 @@ class AnsibleVault():
         return AnsibleVault(content, password_sets)
 
     def _decrypt_content(self, content, password):
+        def make_secrets(secret):
+            return [(DEFAULT_VAULT_ID_MATCH, VaultSecret(secret))]
+        vault = VaultLib(make_secrets(password.encode('utf-8')))
+        return vault.decrypt(content).decode('utf-8')
+        
+    # Unused currently
+    def _decrypt_content_with_ansible_vault_command(self, content, password):
         with tempfile.NamedTemporaryFile("w+") as f:
             print(password, file=f)
             f.seek(0)
@@ -53,14 +60,14 @@ class AnsibleVault():
 
     def get_plain(self):
         if self.is_whole_vaulted():
-            result = self._try_to_decrypt_content(content=self.content, password_sets=self.password_sets)
+            result = self._try_to_decrypt_content(content=self.content.strip(), password_sets=self.password_sets)
             return result
         else:
             # https://gihyo.jp/dev/serial/01/yaml_library/0003
             # https://stackoverflow.com/questions/27518976/how-can-i-get-pyyaml-safe-load-to-handle-python-unicode-tag
             # https://qiita.com/podhmo/items/aa954ee1dc1747252436
             def vault_constructor(loader, node):
-                return self._try_to_decrypt_content(content=node.value, password_sets=self.password_sets)
+                return self._try_to_decrypt_content(content=node.value.strip(), password_sets=self.password_sets)
 
             yaml.SafeLoader.add_constructor('!vault', vault_constructor)
             return yaml.dump(yaml.safe_load(self.content), sort_keys=False)

@@ -2,8 +2,7 @@ import pytest
 from assertpy import assert_that, fail
 import yaml
 import logging
-from importlib.machinery import SourceFileLoader  # 拡張子なしpy scriptをimportするため
-avault = SourceFileLoader('avault', './avault').load_module()
+import avault.avault as avault
 import io
 import textwrap
 import tempfile
@@ -35,43 +34,21 @@ wholevault_decrypted = textwrap.dedent("""
 
 vaulted_data = {}
 vaulted_data['item2'] = """
-    $ANSIBLE_VAULT;1.1;AES256
-    30323633363634656636323338386264376561376632323135343964376332653431363132616365
-    3762633064663266623361653264383761656462323334350a616361663938343865633033336334
-    35343365656262666330613933633265326266633434313564303964663164366432666430363863
-    6534313837316538310a333334646333613164306234326563633132343536366162306533386236
-    3633
+          $ANSIBLE_VAULT;1.1;AES256
+          37373634333632663932646537616437643631306634376638646437353239313334323465323630
+          6536636263646430363862613436306433376637326539310a626362653835393632396639323038
+          39353531363031313437633038653133393538646361323832333164623932646131616130633933
+          6166636463353063330a343839333866343431383861353430623937363565383732323730363563
+          3738
 """
 vaulted_data['value2-2'] = """
-            $ANSIBLE_VAULT;1.1;AES256
-            39616165333162396239363165326434613731386531666336353435633131633139633634346130
-            6230363165663034393561313937616233376439356233610a646539663731633939626366383237
-            63656130313532633531383561313966666437383634646662363763303863303034643235613833
-            6461626631613031330a626666343661666238353233353632363230393531316366303731666634
-            3862
+          $ANSIBLE_VAULT;1.1;AES256
+          37633532613764643434343431656236623036646137393433666338323237393662373533353433
+          6230386361326632653265633232363738633663336565390a363331366633323339653863393036
+          35313934643636663466306432323231323139313534333836386164323930363364633237626638
+          3564363563383862660a356265343263373961656266383537313863616339646661656433633961
+          3064
 """
-
-inlinevault_ = textwrap.dedent("""
-- item1
-- item3
-- !vault |
-    $ANSIBLE_VAULT;1.1;AES256
-    30323633363634656636323338386264376561376632323135343964376332653431363132616365
-    3762633064663266623361653264383761656462323334350a616361663938343865633033336334
-    35343365656262666330613933633265326266633434313564303964663164366432666430363863
-    6534313837316538310a333334646333613164306234326563633132343536366162306533386236
-    3633
-- key1: value1
-  key3: value3
-  key2:
-    key2-2: !vault |
-            $ANSIBLE_VAULT;1.1;AES256
-            39616165333162396239363165326434613731386531666336353435633131633139633634346130
-            6230363165663034393561313937616233376439356233610a646539663731633939626366383237
-            63656130313532633531383561313966666437383634646662363763303863303034643235613833
-            6461626631613031330a626666343661666238353233353632363230393531316366303731666634
-            3862
-""")[1:-1]
 inlinevault = textwrap.dedent(f"""
 - item1
 - item3
@@ -95,7 +72,7 @@ inlinevault_decrypted = textwrap.dedent("""
 """)[1:-1]
 
 passwords = textwrap.dedent("""
-name1,password1
+#name1,password1
 name2,test
 """)
 
@@ -142,7 +119,7 @@ def mock_decrypt_content_method():
         else:
             raise subprocess.CalledProcessError(returncode=1, cmd='ansible-vault')
 
-    avault.AnsibleVault._decrypt_content = _decrypt_content_mock
+    avault.AnsibleVault._decrypt_content_with_ansible_vault_command = _decrypt_content_mock
     yield
 
 
@@ -223,3 +200,23 @@ class Testパスワード入力方法():
         avault.main(args=args)
         out, err = capfd.readouterr()
         assert_that(out.rstrip()).is_equal_to(wholevault_decrypted.rstrip())
+
+class TestAnsible():
+    def test_ansible(self):
+        import ansible
+        from ansible.parsing.vault import VaultLib
+        def make_secrets(secret):
+            from ansible.constants import DEFAULT_VAULT_ID_MATCH
+            from ansible.parsing.vault import VaultSecret
+            return [(DEFAULT_VAULT_ID_MATCH, VaultSecret(secret))]
+
+        vault = VaultLib(make_secrets('test'.encode('utf-8')))
+
+        plaintext = "text"
+        assert_that(vault.decrypt(vault.encrypt(plaintext)).decode('utf-8')).is_equal_to(plaintext)
+        plaintext = " text"
+        assert_that(vault.decrypt(vault.encrypt(plaintext)).decode('utf-8')).is_equal_to(plaintext)
+        plaintext = " text "
+        assert_that(vault.decrypt(vault.encrypt(plaintext)).decode('utf-8')).is_equal_to(plaintext)
+        plaintext = " text\n "
+        assert_that(vault.decrypt(vault.encrypt(plaintext)).decode('utf-8')).is_equal_to(plaintext)
