@@ -72,7 +72,7 @@ inlinevault_decrypted = textwrap.dedent("""
 """)[1:-1]
 
 passwords = textwrap.dedent("""
-#name1,password1
+name1,password1
 name2,test
 """)
 

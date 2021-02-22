@@ -7,7 +7,7 @@ from pprint import pprint as pp
 import sys
 from ansible.parsing.vault import VaultLib
 from ansible.constants import DEFAULT_VAULT_ID_MATCH
-from ansible.parsing.vault import VaultSecret
+from ansible.parsing.vault import VaultSecret, AnsibleVaultError
 
 class AnsibleVault():
     @classmethod
@@ -43,6 +43,8 @@ class AnsibleVault():
             try:
                 return self._decrypt_content(content, password_set['password'])        
             except subprocess.CalledProcessError as e:
+                pass
+            except AnsibleVaultError as e:
                 pass
             except Exception as e:
                 raise e
