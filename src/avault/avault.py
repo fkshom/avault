@@ -20,28 +20,32 @@ class AnsibleVault():
                 content = f.read()
         return AnsibleVault(content, password_sets)
 
-    def _decrypt_content(self, content, password):
-        def make_secrets(secret):
-            return [(DEFAULT_VAULT_ID_MATCH, VaultSecret(secret))]
-        vault = VaultLib(make_secrets(password.encode('utf-8')))
-        return vault.decrypt(content).decode('utf-8')
+    def _decrypt_content_with_ansible_lib(self, content, password_sets):
+        secrets = []
+        for password_set in password_sets:
+            password = password_set['password'].encode('utf-8')
+            vaultid = password_set.get('name', DEFAULT_VAULT_ID_MATCH)
+            secrets.append((vaultid, VaultSecret(password)))
+        try:
+            vault = VaultLib(secrets)
+            return vault.decrypt(content).decode('utf-8')
+        except Exception as e:
+                raise e
         
     # Unused currently
-    def _decrypt_content_with_ansible_vault_command(self, content, password):
-        with tempfile.NamedTemporaryFile("w+") as f:
-            print(password, file=f)
-            f.seek(0)
-            proc = subprocess.run(
-                f'ansible-vault decrypt --vault-password-file {f.name} --output -',
-                shell=True, check=True,
-                input=content.strip(),
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            return proc.stdout.strip()
- 
-    def _try_to_decrypt_content(self, content, password_sets):
+    def _decrypt_content_with_ansible_vault_command(self, content, password_sets):
         for password_set in password_sets:
+            password = (password_set['name'], password_set['password'])
             try:
-                return self._decrypt_content(content, password_set['password'])        
+                with tempfile.NamedTemporaryFile("w+") as f:
+                    print(password, file=f)
+                    f.seek(0)
+                    proc = subprocess.run(
+                        f'ansible-vault decrypt --vault-password-file {f.name} --output -',
+                        shell=True, check=True,
+                        input=content.strip(),
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    return proc.stdout.strip()     
             except subprocess.CalledProcessError as e:
                 pass
             except AnsibleVaultError as e:
@@ -50,6 +54,10 @@ class AnsibleVault():
                 raise e
         else:
             raise Exception("Decrypt Error")
+
+ 
+    def _try_to_decrypt_content(self, content, password_sets):
+        return self._decrypt_content_with_ansible_lib(content, password_sets)
 
     def __init__(self, content, password_sets):
         self.content = content
@@ -74,8 +82,28 @@ class AnsibleVault():
             yaml.SafeLoader.add_constructor('!vault', vault_constructor)
             return yaml.dump(yaml.safe_load(self.content), sort_keys=False)
 
-
 def read_passfile(passfile):
+    password_sets = []
+    with open(passfile) as f:
+        for line in list(f.readlines()):
+            if line.strip() == '':
+                continue
+            if line[0] == '#':
+                continue
+            columns = line.strip().split(',')
+            if len(columns) == 1:
+                password_sets.append(dict(
+                    name=DEFAULT_VAULT_ID_MATCH, password=columns[0]
+                ))
+            elif len(columns) == 2:
+                password_sets.append(dict(
+                    name=columns[1], password=columns[0]
+                ))
+            else:
+                print('passfile entry is invalid. columns length must be 1 or 2', file=sys.stderr)
+    return password_sets
+
+def read_passfile_(passfile):
     password_sets = []
     with open(passfile) as f:
         for line in list(f.readlines()):
@@ -94,11 +122,11 @@ def command_decrypt(args):
         password_sets = read_passfile(args.passfile)
     elif os.environ.get('AVAULT_PASS'):
         password = os.environ['AVAULT_PASS']
-        password_sets = [{'name':'main', 'password':password}]
+        password_sets = [{'name':'default', 'password':password}]
     else:
         import getpass
         password = getpass.getpass(prompt='Password: ')
-        password_sets = [{'mame':'main', 'password':password}]
+        password_sets = [{'mame':'default', 'password':password}]
 
     av = AnsibleVault.load(args.filename, password_sets)
     result = av.get_plain()
@@ -111,11 +139,11 @@ def command_view(args):
         password_sets = read_passfile(args.passfile)
     elif os.environ.get('AVAULT_PASS'):
         password = os.environ['AVAULT_PASS']
-        password_sets = [{'name':'main', 'password':password}]
+        password_sets = [{'name':'default', 'password':password}]
     else:
         import getpass
         password = getpass.getpass(prompt='Password: ')
-        password_sets = [{'mame':'main', 'password':password}]
+        password_sets = [{'mame':'default', 'password':password}]
 
     av = AnsibleVault.load(args.filename, password_sets)
     result = av.get_plain()

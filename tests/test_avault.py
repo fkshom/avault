@@ -72,8 +72,11 @@ inlinevault_decrypted = textwrap.dedent("""
 """)[1:-1]
 
 passwords = textwrap.dedent("""
-name1,password1
-name2,test
+dummypass1
+dummypass2,default
+test,dummyid
+test
+dummypass3,default
 """)
 
 @pytest.fixture(scope='function', autouse=False)
