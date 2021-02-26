@@ -10,7 +10,9 @@ ansible-vaultコマンドとは異なる次の特徴を持ちます。
 
 ```sh
 $ pip3 install avault
-$ avault -h
+$ avault view vault.yml  # input password by prompt
+$ avault view --passfile PASSFILE vault.yml
+$ AVAULT_PASS=MYPASSWORD avault view vault.yml
 ```
 
 ```
@@ -22,8 +24,8 @@ FILENAME: vaultファイル名。与えられない場合は標準入力から�
 
 ## PASSFILEフォーマット
 ```
-name1,password1
-name2,password2
+password1
+password2
 ```
-nameは、識別子。任意の文字列。
+
 
